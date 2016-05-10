@@ -32,12 +32,12 @@ module Utils
         # https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters
         if ENV["HOMEBREW_ANALYTICS_DEBUG"]
           puts Utils.popen_read ENV["HOMEBREW_CURL"],
-            "https://www.google-analytics.com/debug/collect",
+            "0.0.0.0",
             *args
         else
           pid = fork do
             exec ENV["HOMEBREW_CURL"],
-              "https://www.google-analytics.com/collect",
+              "0.0.0.0",
               "--silent", "--output", "/dev/null",
               *args
           end
