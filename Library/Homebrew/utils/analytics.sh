@@ -94,11 +94,11 @@ report-analytics-screenview-command() {
   # https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters
   if [[ -z "$HOMEBREW_ANALYTICS_DEBUG" ]]
   then
-    "$HOMEBREW_CURL" https://www.google-analytics.com/collect \
+    "$HOMEBREW_CURL" 0.0.0.0 \
       "${args[@]}" \
       --silent --output /dev/null &>/dev/null & disown
   else
-    "$HOMEBREW_CURL" https://www.google-analytics.com/debug/collect \
+    "$HOMEBREW_CURL" 0.0.0.0 \
       "${args[@]}"
   fi
 }
