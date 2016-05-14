@@ -24,6 +24,14 @@ chdir() {
   cd "$@" >/dev/null || odie "Error: failed to cd to $*!"
 }
 
+brew() {
+  "$HOMEBREW_BREW_FILE" "$@"
+}
+
+git() {
+  "$HOMEBREW_LIBRARY/ENV/scm/git" "$@"
+}
+
 # Force UTF-8 to avoid encoding issues for users with broken locale settings.
 if [[ "$(locale charmap 2> /dev/null)" != "UTF-8" ]]
 then
@@ -207,6 +215,8 @@ EOS
   esac
 fi
 
+# Hide shellcheck complaint:
+# shellcheck source=/dev/null
 source "$HOMEBREW_LIBRARY/Homebrew/utils/analytics.sh"
 setup-analytics
 report-analytics-screenview-command
@@ -220,7 +230,7 @@ update-preinstall() {
     # Hide shellcheck complaint:
     # shellcheck source=/dev/null
     source "$HOMEBREW_LIBRARY/Homebrew/cmd/update.sh"
-    homebrew-update --preinstall
+    brew update --preinstall
   fi
 }
 

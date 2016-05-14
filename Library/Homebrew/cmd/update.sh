@@ -5,15 +5,9 @@
 #:    If `--merge` is specified then `git merge` is used to include updates
 #:      (rather than `git rebase`).
 
+# Hide shellcheck complaint:
+# shellcheck source=/dev/null
 source "$HOMEBREW_LIBRARY/Homebrew/utils/lock.sh"
-
-brew() {
-  "$HOMEBREW_BREW_FILE" "$@"
-}
-
-git() {
-  "$HOMEBREW_LIBRARY/ENV/scm/git" "$@"
-}
 
 git_init_if_necessary() {
   if [[ -n "$HOMEBREW_OSX" ]]
