@@ -234,7 +234,7 @@ class Keg
       dirs.reverse_each(&:rmdir_if_possible)
     end
 
-    ObserverPathnameExtension.total
+    ObserverPathnameExtension.n
   end
 
   def lock
@@ -374,7 +374,11 @@ class Keg
     unlink
     raise
   else
+<<<<<<< HEAD
     ObserverPathnameExtension.total
+=======
+    ObserverPathnameExtension.n
+>>>>>>> remotes/upstream/master
   end
 
   def remove_oldname_opt_record
