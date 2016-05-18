@@ -374,11 +374,7 @@ class Keg
     unlink
     raise
   else
-<<<<<<< HEAD
-    ObserverPathnameExtension.total
-=======
     ObserverPathnameExtension.n
->>>>>>> remotes/upstream/master
   end
 
   def remove_oldname_opt_record
