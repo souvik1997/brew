@@ -239,11 +239,7 @@ class LinkTests < Homebrew::TestCase
   def test_unlink_ignores_nonexistent_file
     @keg.link
     @dst.delete
-<<<<<<< HEAD
-    assert_equal 3, @keg.unlink
-=======
     assert_equal 2, @keg.unlink
->>>>>>> remotes/upstream/master
   end
 
   def test_pkgconfig_is_mkpathed
