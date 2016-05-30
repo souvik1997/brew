@@ -4,8 +4,7 @@
 # Usage: brew pull [options...] <patch-source> [<patch-source> ...]
 #
 # Each <patch-source> may be one of:
-#   * The ID number of a PR (Pull Request) in the homebrew/core or legacy-homebrew
-#       GitHub repo
+#   * The ID number of a PR (Pull Request) in the homebrew/core GitHub repo
 #   * The URL of a PR on GitHub, using either the web page or API URL
 #       formats. In this form, the PR may be on homebrew/brew, homebrew/core, or
 #       any tap.
@@ -20,8 +19,6 @@
 #   --resolve:     When a patch fails to apply, leave in progress and allow user to
 #                  resolve, instead of aborting
 #   --branch-okay: Do not warn if pulling to a branch besides master (useful for testing)
-#   --legacy:      Pull legacy formula PR from Homebrew/legacy-homebrew
-#                  (TODO remove it when it's no longer necessary)
 #   --no-pbcopy:   Do not copy anything to the system clipboard
 #   --no-publish:  Do not publish bottles to Bintray
 
@@ -52,11 +49,7 @@ module Homebrew
     ARGV.named.each do |arg|
       if arg.to_i > 0
         issue = arg
-        if ARGV.include? "--legacy"
-          url = "https://github.com/Homebrew/legacy-homebrew/pull/#{arg}"
-        else
-          url = "https://github.com/Homebrew/homebrew-core/pull/#{arg}"
-        end
+        url = "https://github.com/Homebrew/homebrew-core/pull/#{arg}"
         tap = CoreTap.instance
       elsif (testing_match = arg.match %r{brew.sh/job/Homebrew.*Testing/(\d+)/})
         _, testing_job = *testing_match
@@ -67,11 +60,9 @@ module Homebrew
         _, user, repo, issue = *api_match
         url = "https://github.com/#{user}/#{repo}/pull/#{issue}"
         tap = Tap.fetch(user, repo) if repo.start_with?("homebrew-")
-        tap = CoreTap.instance if ARGV.include?("--legacy")
       elsif (url_match = arg.match HOMEBREW_PULL_OR_COMMIT_URL_REGEX)
         url, user, repo, issue = *url_match
         tap = Tap.fetch(user, repo) if repo.start_with?("homebrew-")
-        tap = CoreTap.instance if ARGV.include?("--legacy")
       else
         odie "Not a GitHub pull request or commit: #{arg}"
       end
@@ -102,10 +93,6 @@ module Homebrew
       patch_puller.fetch_patch
       patch_changes = files_changed_in_patch(patch_puller.patchpath, tap)
 
-      if ARGV.include?("--legacy") && patch_changes[:others].reject { |f| f.start_with? "Library/Aliases" }.any?
-        odie "Cannot merge legacy PR!"
-      end
-
       is_bumpable = patch_changes[:formulae].length == 1 && patch_changes[:others].empty?
       if do_bump
         odie "No changed formulae found to bump" if patch_changes[:formulae].empty?
@@ -119,7 +106,7 @@ module Homebrew
       end
       patch_puller.apply_patch
 
-      changed_formulae = []
+      changed_formulae_names = []
 
       if tap
         Utils.popen_read(
@@ -128,7 +115,7 @@ module Homebrew
         ).each_line do |line|
           name = "#{tap.name}/#{File.basename(line.chomp, ".rb")}"
           begin
-            changed_formulae << Formula[name]
+            changed_formulae_names << name
           # Make sure we catch syntax errors.
           rescue Exception
             next
@@ -137,7 +124,10 @@ module Homebrew
       end
 
       fetch_bottles = false
-      changed_formulae.each do |f|
+      changed_formulae_names.each do |name|
+        next if ENV["HOMEBREW_DISABLE_LOAD_FORMULA"]
+
+        f = Formula[name]
         if ARGV.include? "--bottle"
           if f.bottle_unneeded?
             ohai "#{f}: skipping unneeded bottle."
@@ -155,21 +145,21 @@ module Homebrew
       orig_message = message = `git log HEAD^.. --format=%B`
       if issue && !ARGV.include?("--clean")
         ohai "Patch closes issue ##{issue}"
-        if ARGV.include?("--legacy")
-          close_message = "Closes Homebrew/legacy-homebrew##{issue}."
-        else
-          close_message = "Closes ##{issue}."
-        end
+        close_message = "Closes ##{issue}."
         # If this is a pull request, append a close message.
         message += "\n#{close_message}" unless message.include? close_message
       end
 
-      if changed_formulae.empty?
+      if changed_formulae_names.empty?
         odie "cannot bump: no changed formulae found after applying patch" if do_bump
         is_bumpable = false
       end
-      if is_bumpable && !ARGV.include?("--clean")
-        formula = changed_formulae.first
+
+      is_bumpable = false if ARGV.include?("--clean")
+      is_bumpable = false if ENV["HOMEBREW_DISABLE_LOAD_FORMULA"]
+
+      if is_bumpable
+        formula = Formula[changed_formulae_names.first]
         new_versions = current_versions_from_info_external(patch_changes[:formulae].first)
         orig_subject = message.empty? ? "" : message.lines.first.chomp
         bump_subject = subject_for_bump(formula, old_versions, new_versions)
@@ -200,15 +190,7 @@ module Homebrew
           "https://github.com/BrewTestBot/homebrew-#{tap.repo}/compare/homebrew:master...pr-#{issue}"
         end
 
-        bottle_commit_fallbacked = false
-        begin
-          curl "--silent", "--fail", "-o", "/dev/null", "-I", bottle_commit_url
-        rescue ErrorDuringExecution
-          raise if !ARGV.include?("--legacy") || bottle_commit_fallbacked
-          bottle_commit_url = "https://github.com/BrewTestBot/homebrew/compare/homebrew:master...pr-#{issue}"
-          bottle_commit_fallbacked = true
-          retry
-        end
+        curl "--silent", "--fail", "-o", "/dev/null", "-I", bottle_commit_url
 
         safe_system "git", "checkout", "--quiet", "-B", bottle_branch, orig_revision
         pull_patch bottle_commit_url, "bottle commit"
@@ -219,7 +201,7 @@ module Homebrew
 
         # Publish bottles on Bintray
         unless ARGV.include? "--no-publish"
-          published = publish_changed_formula_bottles(tap, changed_formulae)
+          published = publish_changed_formula_bottles(tap, changed_formulae_names)
           bintray_published_formulae.concat(published)
         end
       end
@@ -239,11 +221,16 @@ module Homebrew
 
   private
 
-  def publish_changed_formula_bottles(tap, changed_formulae)
+  def publish_changed_formula_bottles(tap, changed_formulae_names)
+    if ENV["HOMEBREW_DISABLE_LOAD_FORMULA"]
+      raise "Need to load formulae to publish them!"
+    end
+
     published = []
     bintray_creds = { :user => ENV["BINTRAY_USER"], :key => ENV["BINTRAY_KEY"] }
     if bintray_creds[:user] && bintray_creds[:key]
-      changed_formulae.each do |f|
+      changed_formulae_names.each do |name|
+        f = Formula[name]
         next if f.bottle_unneeded? || f.bottle_disabled?
         ohai "Publishing on Bintray: #{f.name} #{f.pkg_version}"
         publish_bottle_file_on_bintray(f, bintray_creds)
@@ -300,18 +287,10 @@ module Homebrew
 
       # Fall back to three-way merge if patch does not apply cleanly
       patch_args << "-3"
-      patch_args << "-p2" if ARGV.include?("--legacy") && !base_url.include?("BrewTestBot/homebrew-core")
       patch_args << patchpath
-
-      start_revision = `git rev-parse HEAD`.strip
 
       begin
         safe_system "git", "am", *patch_args
-        if ARGV.include?("--legacy")
-          safe_system "git", "filter-branch", "-f", "--msg-filter",
-                             "sed -E -e \"s/ (#[0-9]+)/ Homebrew\\/homebrew\\1/g\"",
-                             "#{start_revision}..HEAD"
-        end
       rescue ErrorDuringExecution
         if ARGV.include? "--resolve"
           odie "Patch failed to apply: try to resolve it."
@@ -336,7 +315,7 @@ module Homebrew
       files << $1 if line =~ %r{^\+\+\+ b/(.*)}
     end
     files.each do |file|
-      if (tap && tap.formula_file?(file)) || (ARGV.include?("--legacy") && file.start_with?("Library/Formula/"))
+      if tap && tap.formula_file?(file)
         formula_name = File.basename(file, ".rb")
         formulae << formula_name unless formulae.include?(formula_name)
       else
@@ -493,6 +472,11 @@ module Homebrew
   # version of a formula.
   def verify_bintray_published(formulae_names)
     return if formulae_names.empty?
+
+    if ENV["HOMEBREW_DISABLE_LOAD_FORMULA"]
+      raise "Need to load formulae to verify their publication!"
+    end
+
     ohai "Verifying bottles published on Bintray"
     formulae = formulae_names.map { |n| Formula[n] }
     max_retries = 300 # shared among all bottles

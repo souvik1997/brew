@@ -11,8 +11,6 @@
 # --junit:         Generate a JUnit XML test results file.
 # --no-bottle:     Run brew install without --build-bottle.
 # --keep-old:      Run brew bottle --keep-old to build new bottles for a single platform.
-# --legacy         Build formula from legacy Homebrew/legacy-homebrew repo.
-#                  (TODO remove it when it's not longer necessary)
 # --HEAD:          Run brew install with --HEAD.
 # --local:         Ask Homebrew to write verbose logs under ./logs/ and set HOME to ./home/.
 # --tap=<tap>:     Use the git repository of the given tap.
@@ -89,8 +87,6 @@ module Homebrew
       rescue
       end
     end
-
-    CoreTap.instance
   end
 
   class Step
@@ -114,7 +110,7 @@ module Homebrew
     end
 
     def command_short
-      (@command - %w[brew --force --retry --verbose --build-bottle --rb]).join(" ")
+      (@command - %w[brew --force --retry --verbose --build-bottle --json]).join(" ")
     end
 
     def passed?
@@ -221,8 +217,8 @@ module Homebrew
       @added_formulae = []
       @modified_formula = []
       @steps = []
-      @tap = options.fetch(:tap, CoreTap.instance)
-      @repository = @tap.path
+      @tap = options[:tap]
+      @repository = @tap ? @tap.path : HOMEBREW_REPOSITORY
       @skip_homebrew = options.fetch(:skip_homebrew, false)
 
       if quiet_system "git", "-C", @repository.to_s, "rev-parse", "--verify", "-q", argument
@@ -275,6 +271,7 @@ module Homebrew
       end
 
       def diff_formulae(start_revision, end_revision, path, filter)
+        return unless @tap
         git(
           "diff-tree", "-r", "--name-only", "--diff-filter=#{filter}",
           start_revision, end_revision, "--", path
@@ -342,11 +339,7 @@ module Homebrew
         # the right commit to BrewTestBot.
         unless travis_pr
           diff_start_sha1 = current_sha1
-          if ARGV.include?("--legacy")
-            test "brew", "pull", "--clean", "--legacy", @url
-          else
-            test "brew", "pull", "--clean", @url
-          end
+          test "brew", "pull", "--clean", @url
           diff_end_sha1 = current_sha1
         end
         @short_url = @url.gsub("https://github.com/", "")
@@ -366,6 +359,7 @@ module Homebrew
 
       return unless diff_start_sha1 != diff_end_sha1
       return if @url && steps.last && !steps.last.passed?
+      return unless @tap
 
       formula_path = @tap.formula_dir.to_s
       @added_formulae += diff_formulae(diff_start_sha1, diff_end_sha1, formula_path, "A")
@@ -570,15 +564,15 @@ module Homebrew
       test "brew", "audit", *audit_args
       if install_passed
         if formula.stable? && !ARGV.include?("--fast") && !ARGV.include?("--no-bottle") && !formula.bottle_disabled?
-          bottle_args = ["--verbose", "--rb", formula_name]
+          bottle_args = ["--verbose", "--json", formula_name]
           bottle_args << "--keep-old" if ARGV.include? "--keep-old"
           test "brew", "bottle", *bottle_args
           bottle_step = steps.last
           if bottle_step.passed? && bottle_step.has_output?
             bottle_filename =
               bottle_step.output.gsub(/.*(\.\/\S+#{Utils::Bottles::native_regex}).*/m, '\1')
-            bottle_rb_filename = bottle_filename.gsub(/\.(\d+\.)?tar\.gz$/, ".rb")
-            bottle_merge_args = ["--merge", "--write", "--no-commit", bottle_rb_filename]
+            bottle_json_filename = bottle_filename.gsub(/\.(\d+\.)?tar\.gz$/, ".json")
+            bottle_merge_args = ["--merge", "--write", "--no-commit", bottle_json_filename]
             bottle_merge_args << "--keep-old" if ARGV.include? "--keep-old"
             test "brew", "bottle", *bottle_merge_args
             test "brew", "uninstall", "--force", formula_name
@@ -637,18 +631,17 @@ module Homebrew
     def homebrew
       @category = __method__
       return if @skip_homebrew
-      test "brew", "tests"
-      if @tap.core_tap?
-        tests_args = ["--no-compat"]
-        readall_args = ["--aliases"]
-        if RUBY_VERSION.split(".").first.to_i >= 2
-          tests_args << "--coverage" if ENV["TRAVIS"]
-          readall_args << "--syntax"
-        end
+
+      ruby_two = RUBY_VERSION.split(".").first.to_i >= 2
+
+      if @tap.nil?
+        tests_args = []
+        tests_args << "--coverage" if ruby_two && ENV["TRAVIS"]
         test "brew", "tests", *tests_args
-        test "brew", "readall", *readall_args
+        test "brew", "tests", "--no-compat"
+        test "brew", "readall", "--syntax"
       else
-        test "brew", "readall", @tap.name
+        test "brew", "readall", "--aliases", @tap.name
       end
     end
 
@@ -768,6 +761,11 @@ module Homebrew
   end
 
   def test_ci_upload(tap)
+    raise "Need a tap to upload!" unless tap
+
+    # Don't trust formulae we're uploading
+    ENV["HOMEBREW_DISABLE_LOAD_FORMULA"] = "1"
+
     jenkins = ENV["JENKINS_HOME"]
     job = ENV["UPSTREAM_JOB_NAME"]
     id = ENV["UPSTREAM_BUILD_ID"]
@@ -779,15 +777,13 @@ module Homebrew
       raise "Missing BINTRAY_USER or BINTRAY_KEY variables!"
     end
 
-    # Don't pass keys/cookies to subprocesses..
+    # Don't pass keys/cookies to subprocesses
     ENV["BINTRAY_KEY"] = nil
     ENV["HUDSON_SERVER_COOKIE"] = nil
     ENV["JENKINS_SERVER_COOKIE"] = nil
     ENV["HUDSON_COOKIE"] = nil
 
     ARGV << "--verbose"
-    ARGV << "--keep-old" if ENV["UPSTREAM_BOTTLE_KEEP_OLD"]
-    ARGV << "--legacy" if ENV["UPSTREAM_BOTTLE_LEGACY"]
 
     bottles = Dir["#{jenkins}/jobs/#{job}/configurations/axis-version/*/builds/#{id}/archive/*.bottle*.*"]
     return if bottles.empty?
@@ -808,66 +804,66 @@ module Homebrew
     safe_system "brew", "update"
 
     if pr
-      if ARGV.include?("--legacy")
-        pull_pr = "https://github.com/Homebrew/legacy-homebrew/pull/#{pr}"
-        safe_system "brew", "pull", "--clean", "--legacy", pull_pr
-      else
-        pull_pr = "https://github.com/#{tap.user}/homebrew-#{tap.repo}/pull/#{pr}"
-        safe_system "brew", "pull", "--clean", pull_pr
-      end
+      pull_pr = "https://github.com/#{tap.user}/homebrew-#{tap.repo}/pull/#{pr}"
+      safe_system "brew", "pull", "--clean", pull_pr
     end
 
-    bottle_args = ["--merge", "--write", *Dir["*.bottle.rb"]]
-    bottle_args << "--keep-old" if ARGV.include? "--keep-old"
-    system "brew", "bottle", *bottle_args
+    json_files = Dir.glob("*.bottle.json")
+    system "brew", "bottle", "--merge", "--write", *json_files
 
     remote = "git@github.com:BrewTestBot/homebrew-#{tap.repo}.git"
-    tag = pr ? "pr-#{pr}" : "testing-#{number}"
+    git_tag = pr ? "pr-#{pr}" : "testing-#{number}"
+    safe_system "git", "push", "--force", remote, "master:master", ":refs/tags/#{git_tag}"
 
-    bintray_repo = Utils::Bottles::Bintray.repository(tap)
-    bintray_repo_url = "https://api.bintray.com/packages/homebrew/#{bintray_repo}"
     formula_packaged = {}
 
-    Dir.glob("*.bottle*.tar.gz") do |filename|
-      formula_name, canonical_formula_name = Utils::Bottles.resolve_formula_names filename
-      formula = Formulary.factory canonical_formula_name
-      version = formula.pkg_version
-      bintray_package = Utils::Bottles::Bintray.package formula_name
-
-      if system "curl", "-I", "--silent", "--fail", "--output", "/dev/null",
-                "#{BottleSpecification::DEFAULT_DOMAIN}/#{bintray_repo}/#{filename}"
-        raise <<-EOS.undent
-          #{filename} is already published. Please remove it manually from
-          https://bintray.com/homebrew/#{bintray_repo}/#{bintray_package}/view#files
-        EOS
-      end
-
-      unless formula_packaged[formula_name]
-        package_url = "#{bintray_repo_url}/#{bintray_package}"
-        unless system "curl", "--silent", "--fail", "--output", "/dev/null", package_url
-          package_blob = <<-EOS.undent
-            {"name": "#{bintray_package}",
-             "public_download_numbers": true,
-             "public_stats": true}
-          EOS
-          curl "--silent", "--fail", "-u#{bintray_user}:#{bintray_key}",
-               "-H", "Content-Type: application/json",
-               "-d", package_blob, bintray_repo_url
-          puts
-        end
-        formula_packaged[formula_name] = true
-      end
-
-      content_url = "https://api.bintray.com/content/homebrew"
-      content_url += "/#{bintray_repo}/#{bintray_package}/#{version}/#{filename}"
-      content_url += "?override=1"
-      curl "--silent", "--fail", "-u#{bintray_user}:#{bintray_key}",
-           "-T", filename, content_url
-      puts
+    bottles_hash = json_files.reduce({}) do |hash, json_file|
+      deep_merge_hashes hash, Utils::JSON.load(IO.read(json_file))
     end
 
-    safe_system "git", "tag", "--force", tag
-    safe_system "git", "push", "--force", remote, "master:master", "refs/tags/#{tag}"
+    bottles_hash.each do |formula_name, bottle_hash|
+      version = bottle_hash["formula"]["pkg_version"]
+      bintray_package = bottle_hash["bintray"]["package"]
+      bintray_repo = bottle_hash["bintray"]["repository"]
+      bintray_repo_url = "https://api.bintray.com/packages/homebrew/#{bintray_repo}"
+
+      bottle_hash["bottle"]["tags"].each do |tag, tag_hash|
+        filename = tag_hash["filename"]
+        if system "curl", "-I", "--silent", "--fail", "--output", "/dev/null",
+                  "#{BottleSpecification::DEFAULT_DOMAIN}/#{bintray_repo}/#{filename}"
+          raise <<-EOS.undent
+            #{filename} is already published. Please remove it manually from
+            https://bintray.com/homebrew/#{bintray_repo}/#{bintray_package}/view#files
+          EOS
+        end
+
+        unless formula_packaged[formula_name]
+          package_url = "#{bintray_repo_url}/#{bintray_package}"
+          unless system "curl", "--silent", "--fail", "--output", "/dev/null", package_url
+            package_blob = <<-EOS.undent
+              {"name": "#{bintray_package}",
+               "public_download_numbers": true,
+               "public_stats": true}
+            EOS
+            curl "--silent", "--fail", "-u#{bintray_user}:#{bintray_key}",
+                 "-H", "Content-Type: application/json",
+                 "-d", package_blob, bintray_repo_url
+            puts
+          end
+          formula_packaged[formula_name] = true
+        end
+
+        content_url = "https://api.bintray.com/content/homebrew"
+        content_url += "/#{bintray_repo}/#{bintray_package}/#{version}/#{filename}"
+        content_url += "?override=1"
+        curl "--silent", "--fail", "-u#{bintray_user}:#{bintray_key}",
+             "-T", filename, content_url
+        puts
+      end
+    end
+
+    safe_system "git", "tag", "--force", git_tag
+    safe_system "git", "push", "--force", remote, "master:master", "refs/tags/#{git_tag}"
   end
 
   def sanitize_ARGV_and_ENV
@@ -911,7 +907,7 @@ module Homebrew
     # because Formula parsing and/or git commit hash lookup depends on it.
     # At the same time, make sure Tap is not a shallow clone.
     # bottle revision and bottle upload rely on full clone.
-    safe_system "brew", "tap", tap.name, "--full"
+    safe_system "brew", "tap", tap.name, "--full" if tap
 
     if ARGV.include? "--ci-upload"
       return test_ci_upload(tap)

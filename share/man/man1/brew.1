@@ -430,8 +430,11 @@ Uninstall then install \fIformula\fR
 Display all locally available formulae for brewing (including tapped ones)\. No online search is performed if called without arguments\.
 .
 .TP
-\fBsearch\fR, \fB\-S\fR \fItext\fR|\fB/\fR\fItext\fR\fB/\fR
+\fBsearch\fR [\fB\-\-desc\fR] \fItext\fR|\fB/\fR\fItext\fR\fB/\fR
 Perform a substring search of formula names for \fItext\fR\. If \fItext\fR is surrounded with slashes, then it is interpreted as a regular expression\. The search for \fItext\fR is extended online to some popular taps\.
+.
+.IP
+If \fB\-\-desc\fR is passed, browse available packages matching \fItext\fR including a description for each\.
 .
 .TP
 \fBsearch\fR (\fB\-\-debian\fR|\fB\-\-fedora\fR|\fB\-\-fink\fR|\fB\-\-macports\fR|\fB\-\-opensuse\fR|\fB\-\-ubuntu\fR) \fItext\fR
@@ -781,9 +784,6 @@ If set, Homebrew will not permit redirects from secure HTTPS to insecure HTTP\.
 .
 .IP
 While ensuring your downloads are fully secure, this is likely to cause from\-source Sourceforge & GNOME based formulae to fail to download\.
-.
-.IP
-Apache formulae are currently unaffected by this variable and can redirect to plaintext\.
 .
 .TP
 \fBHOMEBREW_NO_GITHUB_API\fR

@@ -4,7 +4,7 @@ Features, usage and installation instructions are [summarised on the homepage](h
 ## What Packages Are Available?
 1. Type `brew search` for a list.
 2. Or visit [braumeister.org](http://braumeister.org) to browse packages online.
-3. Or use `brew search --desc` to browse packages from the command line.
+3. Or use `brew search --desc <keyword>` to browse packages from the command line.
 
 ## More Documentation
 `brew help`, `man brew` or check [our documentation](https://github.com/Homebrew/brew/tree/master/share/doc/homebrew#readme).
@@ -19,7 +19,7 @@ Second, read the [Troubleshooting Checklist](https://github.com/Homebrew/brew/bl
 ## Security
 Please report security issues to security@brew.sh.
 
-This is our PGP key which is valid until June 17, 2016.
+This is our PGP key which is valid until May 24, 2017.
 * Key ID: `0xE33A3D3CCE59E297`
 * Fingerprint: `C657 8F76 2E23 441E C879  EC5C E33A 3D3C CE59 E297`
 * Full key: https://keybase.io/homebrew/key.asc

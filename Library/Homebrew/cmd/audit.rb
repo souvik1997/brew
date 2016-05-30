@@ -74,9 +74,9 @@ module Homebrew
       problem_count += fa.problems.size
       problem_lines = fa.problems.map { |p| "* #{p.chomp.gsub("\n", "\n    ")}" }
       if ARGV.include? "--display-filename"
-        puts problem_lines.map { |s| "#{f.path}: #{s}"}
+        puts problem_lines.map { |s| "#{f.path}: #{s}" }
       else
-        puts "#{f.full_name}:", problem_lines.map { |s| "  #{s}"}
+        puts "#{f.full_name}:", problem_lines.map { |s| "  #{s}" }
       end
     end
 
@@ -552,11 +552,11 @@ class FormulaAuditor
   end
 
   def audit_specs
-    if head_only?(formula) && formula.tap.to_s.downcase !~ /-head-only$/
+    if head_only?(formula) && formula.tap.to_s.downcase !~ %r{[-/]head-only$}
       problem "Head-only (no stable download)"
     end
 
-    if devel_only?(formula) && formula.tap.to_s.downcase !~ /-devel-only$/
+    if devel_only?(formula) && formula.tap.to_s.downcase !~ %r{[-/]devel-only$}
       problem "Devel-only (no stable download)"
     end
 
@@ -903,7 +903,7 @@ class FormulaAuditor
     end
 
     if @strict
-      if line =~ /system (["'][^"' ]*(?:\s[^"' ]*)+["'])/
+      if line =~ /system ((["'])[^"' ]*(?:\s[^"' ]*)+\2)/
         bad_system = $1
         unless %w[| < > & ; *].any? { |c| bad_system.include? c }
           good_system = bad_system.gsub(" ", "\", \"")
@@ -1167,8 +1167,8 @@ class ResourceAuditor
            %r{^http://(?:[^/]*\.)?archive\.org},
            %r{^http://(?:[^/]*\.)?freedesktop\.org}
         problem "Please use https:// for #{p}"
-      when %r{^http://search\.mcpan\.org/CPAN/(.*)}i
-        problem "#{p} should be `https://cpan.metacpan.org/#{$1}`"
+      when %r{^http://search\.(mcpan|cpan)\.org/CPAN/(.*)}i
+        problem "#{p} should be `https://cpan.metacpan.org/#{$2}`"
       when %r{^(http|ftp)://ftp\.gnome\.org/pub/gnome/(.*)}i
         problem "#{p} should be `https://download.gnome.org/#{$2}`"
       end
