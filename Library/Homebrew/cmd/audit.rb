@@ -303,7 +303,7 @@ class FormulaAuditor
 
     same_name_tap_formulae.delete(full_name)
 
-    if same_name_tap_formulae.size > 0
+    unless same_name_tap_formulae.empty?
       problem "Formula name conflicts with #{same_name_tap_formulae.join ", "}"
     end
   end
@@ -415,7 +415,7 @@ class FormulaAuditor
 
     desc = formula.desc
 
-    unless desc && desc.length > 0
+    unless desc && !desc.empty?
       problem "Formula should have a desc (Description)."
       return
     end
@@ -1160,17 +1160,28 @@ class ResourceAuditor
            %r{^http://mirrors\.kernel\.org/},
            %r{^http://(?:[^/]*\.)?bintray\.com/},
            %r{^http://tools\.ietf\.org/},
-           %r{^http://www\.mirrorservice\.org/},
            %r{^http://launchpad\.net/},
            %r{^http://bitbucket\.org/},
+           %r{^http://cpan\.metacpan\.org/},
            %r{^http://hackage\.haskell\.org/},
            %r{^http://(?:[^/]*\.)?archive\.org},
-           %r{^http://(?:[^/]*\.)?freedesktop\.org}
+           %r{^http://(?:[^/]*\.)?freedesktop\.org},
+           %r{^http://(?:[^/]*\.)?mirrorservice\.org/}
         problem "Please use https:// for #{p}"
-      when %r{^http://search\.(mcpan|cpan)\.org/CPAN/(.*)}i
-        problem "#{p} should be `https://cpan.metacpan.org/#{$2}`"
+      when %r{^http://search\.mcpan\.org/CPAN/(.*)}i
+        problem "#{p} should be `https://cpan.metacpan.org/#{$1}`"
       when %r{^(http|ftp)://ftp\.gnome\.org/pub/gnome/(.*)}i
         problem "#{p} should be `https://download.gnome.org/#{$2}`"
+      end
+    end
+
+    # Prefer HTTP/S when possible over FTP protocol due to possible firewalls.
+    urls.each do |p|
+      case p
+      when %r{^ftp://ftp\.mirrorservice\.org}
+        problem "Please use https:// for #{p}"
+      when %r{^ftp://ftp\.cpan\.org/pub/CPAN(.*)}i
+        problem "#{p} should be `http://search.cpan.org/CPAN#{$1}`"
       end
     end
 
@@ -1187,7 +1198,7 @@ class ResourceAuditor
         problem "Don't use #{$1}use_mirror in SourceForge urls (url is #{p})."
       end
 
-      if p =~ /\/download$/
+      if p.end_with?("/download")
         problem "Don't use /download in SourceForge urls (url is #{p})."
       end
 
@@ -1257,6 +1268,12 @@ class ResourceAuditor
         Rather than codeload:
           #{u}
       EOS
+    end
+
+    # Check for Maven Central urls, prefer HTTPS redirector over specific host
+    urls.each do |u|
+      next unless u =~ %r{https?://(?:central|repo\d+)\.maven\.org/maven2/(.+)$}
+      problem "#{u} should be `https://search.maven.org/remotecontent?filepath=#{$1}`"
     end
   end
 

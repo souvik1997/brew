@@ -2,6 +2,7 @@ require "bundler"
 require "testing_env"
 require "fileutils"
 require "pathname"
+require "formula"
 
 class IntegrationCommandTests < Homebrew::TestCase
   def setup
@@ -322,6 +323,17 @@ class IntegrationCommandTests < Homebrew::TestCase
     EOS
 
     assert_equal "testball: Some test", cmd("desc", "testball")
+    assert_match "Pick one, and only one", cmd_fail("desc", "--search", "--name")
+    assert_match "You must provide a search term", cmd_fail("desc", "--search")
+
+    refute_predicate HOMEBREW_CACHE.join("desc_cache.json"),
+                     :exist?, "Cached file should not exist"
+
+    cmd("desc", "--description", "testball")
+    assert_predicate HOMEBREW_CACHE.join("desc_cache.json"),
+                     :exist?, "Cached file should exist"
+
+    FileUtils.rm HOMEBREW_CACHE.join("desc_cache.json")
   ensure
     formula_file.unlink
   end
@@ -552,6 +564,20 @@ class IntegrationCommandTests < Homebrew::TestCase
   def test_home
     assert_equal HOMEBREW_WWW,
                  cmd("home", {"HOMEBREW_BROWSER" => "echo"})
+
+    formula_file = CoreTap.new.formula_dir/"testball.rb"
+    formula_file.write <<-EOS.undent
+      class Testball < Formula
+        desc "Some test"
+        homepage "https://example.com/testball"
+        url "https://example.com/testball-0.1.tar.gz"
+      end
+    EOS
+
+    assert_equal Formula["testball"].homepage,
+                 cmd("home", "testball", {"HOMEBREW_BROWSER" => "echo"})
+  ensure
+    formula_file.unlink
   end
 
   def test_list

@@ -508,6 +508,7 @@ module Homebrew
         http.start do
           while true do
             req = Net::HTTP::Head.new bottle_info.url
+            req.initialize_http_header "User-Agent" => HOMEBREW_USER_AGENT_RUBY
             res = http.request req
             if res.is_a?(Net::HTTPSuccess)
               break
