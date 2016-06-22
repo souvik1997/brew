@@ -593,6 +593,9 @@ module Homebrew
             test "brew", "fetch", "--retry", dependent.name
             next if steps.last.failed?
             conflicts = dependent.conflicts.map { |c| Formulary.factory(c.name) }.select(&:installed?)
+            dependent.recursive_dependencies.each do |dependency|
+              conflicts += dependency.to_formula.conflicts.map { |c| Formulary.factory(c.name) }.select(&:installed?)
+            end
             conflicts.each do |conflict|
               test "brew", "unlink", conflict.name
             end
@@ -873,6 +876,7 @@ module Homebrew
 
     ENV["HOMEBREW_DEVELOPER"] = "1"
     ENV["HOMEBREW_SANDBOX"] = "1"
+    ENV["HOMEBREW_RUBY_MACHO"] = "1" if RUBY_VERSION.split(".").first.to_i >= 2
     ENV["HOMEBREW_NO_EMOJI"] = "1"
     ENV["HOMEBREW_FAIL_LOG_LINES"] = "150"
     ENV["HOMEBREW_EXPERIMENTAL_FILTER_FLAGS_ON_DEPS"] = "1"
