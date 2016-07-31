@@ -102,8 +102,8 @@ class IntegrationCommandTests < Homebrew::TestCase
   def cmd_fail(*args)
     output = cmd_output(*args)
     status = $?.exitstatus
-    $stderr.puts "\n#{output}" if status != 1
-    assert_equal 1, status
+    $stderr.puts "\n#{output}" if status == 0
+    refute_equal 0, status
     output
   end
 
@@ -705,5 +705,72 @@ class IntegrationCommandTests < Homebrew::TestCase
     EOS
 
     assert_match "Interactive Homebrew Shell", cmd("irb", irb_test)
+  end
+
+  def test_pull_offline
+    assert_match "You meant `git pull --rebase`.", cmd_fail("pull", "--rebase")
+    assert_match "This command requires at least one argument", cmd_fail("pull")
+    assert_match "Not a GitHub pull request or commit",
+      cmd_fail("pull", "0")
+  end
+
+  def test_pull
+    skip "Requires network connection" if ENV["HOMEBREW_NO_GITHUB_API"]
+
+    core_tap = CoreTap.new
+    core_tap.path.cd do
+      shutup do
+        system "git", "init"
+        system "git", "checkout", "-b", "new-branch"
+      end
+    end
+
+    assert_match "Testing URLs require `--bottle`!",
+      cmd_fail("pull", "http://bot.brew.sh/job/Homebrew\%20Testing/1028/")
+    assert_match "Current branch is new-branch",
+      cmd_fail("pull", "1")
+    assert_match "No changed formulae found to bump",
+      cmd_fail("pull", "--bump", "8")
+    assert_match "Can only bump one changed formula",
+      cmd_fail("pull", "--bump",
+        "https://api.github.com/repos/Homebrew/homebrew-core/pulls/122")
+    assert_match "Patch failed to apply",
+      cmd_fail("pull", "https://github.com/Homebrew/homebrew-core/pull/1")
+  end
+
+  def test_analytics
+    HOMEBREW_REPOSITORY.cd do
+      shutup do
+        system "git", "init"
+      end
+    end
+
+    assert_match "Invalid usage", cmd_fail("analytics", "on", "off")
+    assert_match "Invalid usage", cmd_fail("analytics", "testball")
+    assert_match "Analytics is enabled", cmd("analytics")
+    assert_match "Analytics is disabled",
+      cmd("analytics", "HOMEBREW_NO_ANALYTICS" => "1")
+
+    cmd("analytics", "regenerate-uuid")
+    cmd("analytics", "on")
+    cmd("analytics", "off")
+    assert_match "Analytics is disabled", cmd("analytics")
+  end
+
+  def test_switch
+    assert_match "Usage: brew switch <name> <version>", cmd_fail("switch")
+    assert_match "testball not found", cmd_fail("switch", "testball", "0.1")
+
+    setup_test_formula "testball", <<-EOS.undent
+      keg_only "just because"
+    EOS
+
+    cmd("install", "testball")
+    testball_rack = HOMEBREW_CELLAR/"testball"
+    FileUtils.cp_r testball_rack/"0.1", testball_rack/"0.2"
+
+    cmd("switch", "testball", "0.2")
+    assert_match "testball does not have a version \"0.3\"",
+      cmd_fail("switch", "testball", "0.3")
   end
 end

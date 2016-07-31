@@ -39,6 +39,8 @@ require "rexml/document"
 require "rexml/xmldecl"
 require "rexml/cdata"
 require "tap"
+require "development_tools"
+require "utils/bottles"
 
 module Homebrew
   BYTES_IN_1_MEGABYTE = 1024*1024
@@ -665,14 +667,16 @@ module Homebrew
           tests_args_coverage << "--coverage" if ENV["TRAVIS"]
         end
         test "brew", "tests", *tests_args
-        test "brew", "tests", "--generic", "--only=integration_cmds",
-                              *tests_args
+        test "brew", "tests", "--generic", *tests_args
         test "brew", "tests", "--no-compat", *tests_args_coverage
         test "brew", "readall", "--syntax"
-        # test update from origin/master to current commit.
-        test "brew", "update-test"
-        # test no-op update from current commit (to current commit, a no-op).
-        test "brew", "update-test", "--commit=HEAD"
+        # TODO: try to fix this on Linux at some stage.
+        if OS.mac?
+          # test update from origin/master to current commit.
+          test "brew", "update-test"
+          # test no-op update from current commit (to current commit, a no-op).
+          test "brew", "update-test", "--commit=HEAD"
+        end
       else
         test "brew", "readall", "--aliases", @tap.name
       end
@@ -685,8 +689,10 @@ module Homebrew
       git "stash"
       git "am", "--abort"
       git "rebase", "--abort"
-      git "checkout", "-f", "master"
-      git "reset", "--hard", "origin/master"
+      unless ARGV.include? "--no-pull"
+        git "checkout", "-f", "master"
+        git "reset", "--hard", "origin/master"
+      end
       git "clean", "-ffdx"
       unless @repository == HOMEBREW_REPOSITORY
         HOMEBREW_REPOSITORY.cd do
@@ -989,7 +995,7 @@ module Homebrew
 
       tests.each do |test|
         testsuite = testsuites.add_element "testsuite"
-        testsuite.add_attribute "name", "brew-test-bot.#{MacOS.cat}"
+        testsuite.add_attribute "name", "brew-test-bot.#{Utils::Bottles.tag}"
         testsuite.add_attribute "tests", test.steps.count
 
         test.steps.each do |step|

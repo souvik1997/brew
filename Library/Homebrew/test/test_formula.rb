@@ -414,14 +414,12 @@ class FormulaTests < Homebrew::TestCase
   end
 
   def test_to_hash_bottle
-    MacOS.stubs(:version).returns(MacOS::Version.new("10.11"))
-
     f1 = formula("foo") do
       url "foo-1.0"
 
       bottle do
         cellar :any
-        sha256 TEST_SHA256 => :el_capitan
+        sha256 TEST_SHA256 => Utils::Bottles.tag
       end
     end
 
@@ -445,7 +443,8 @@ class FormulaTests < Homebrew::TestCase
     assert_predicate f2, :installed?
     assert_predicate f3, :installed?
 
-    assert_equal f3.installed_kegs[0..1], f3.eligible_kegs_for_cleanup
+    assert_equal f3.installed_kegs.sort_by(&:version)[0..1],
+                 f3.eligible_kegs_for_cleanup.sort_by(&:version)
   ensure
     [f1, f2, f3].each(&:clear_cache)
     f3.rack.rmtree
