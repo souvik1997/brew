@@ -54,7 +54,7 @@ module Homebrew
       begin
         reporter = Reporter.new(tap)
       rescue Reporter::ReporterRevisionUnsetError => e
-        onoe e if ARGV.homebrew_developer?
+        onoe "#{e.message}\n#{e.backtrace.join "\n"}" if ARGV.homebrew_developer?
         next
       end
       if reporter.updated?
@@ -193,6 +193,15 @@ class Reporter
       dst = Pathname.new paths.last
 
       next unless dst.extname == ".rb"
+
+      if paths.any? { |p| tap.cask_file?(p) }
+        # Currently only need to handle Cask deletion/migration.
+        if status == "D"
+          # Have a dedicated report array for deleted casks.
+          @report[:DC] << tap.formula_file_to_name(src)
+        end
+      end
+
       next unless paths.any? { |p| tap.formula_file?(p) }
 
       case status
@@ -205,7 +214,7 @@ class Reporter
           old_version = FormulaVersions.new(formula).formula_at_revision(@initial_revision, &:pkg_version)
           next if new_version == old_version
         rescue Exception => e
-          onoe e if ARGV.homebrew_developer?
+          onoe "#{e.message}\n#{e.backtrace.join "\n"}" if ARGV.homebrew_developer?
         end
         @report[:M] << tap.formula_file_to_name(src)
       when /^R\d{0,3}/
@@ -247,19 +256,47 @@ class Reporter
   end
 
   def migrate_tap_migration
-    report[:D].each do |full_name|
+    (report[:D] + report[:DC]).each do |full_name|
       name = full_name.split("/").last
+      new_tap_name = tap.tap_migrations[name]
+      next if new_tap_name.nil? # skip if not in tap_migrations list.
+
+      # This means it is a Cask
+      if report[:DC].include? full_name
+        next unless (HOMEBREW_REPOSITORY/"Caskroom"/name).exist?
+        new_tap = Tap.fetch(new_tap_name)
+        new_tap.install unless new_tap.installed?
+        ohai "#{name} has been moved to Homebrew.", <<-EOS.undent
+          To uninstall the cask run:
+            brew cask uninstall --force #{name}
+        EOS
+        new_full_name = "#{new_tap_name}/#{name}"
+        next if (HOMEBREW_CELLAR/name.split("/").last).directory?
+        ohai "Installing #{name}..."
+        system HOMEBREW_BREW_FILE, "install", new_full_name
+        begin
+          unless Formulary.factory(new_full_name).keg_only?
+            system HOMEBREW_BREW_FILE, "link", new_full_name, "--overwrite"
+          end
+        rescue Exception => e
+          onoe "#{e.message}\n#{e.backtrace.join "\n"}" if ARGV.homebrew_developer?
+        end
+        next
+      end
+
       next unless (dir = HOMEBREW_CELLAR/name).exist? # skip if formula is not installed.
-      next unless new_tap_name = tap.tap_migrations[name] # skip if formula is not in tap_migrations list.
       tabs = dir.subdirs.map { |d| Tab.for_keg(Keg.new(d)) }
       next unless tabs.first.tap == tap # skip if installed formula is not from this tap.
       new_tap = Tap.fetch(new_tap_name)
       # For formulae migrated to cask: Auto-install cask or provide install instructions.
       if new_tap_name == "caskroom/cask"
         if new_tap.installed? && (HOMEBREW_REPOSITORY/"Caskroom").directory?
-          ohai "#{name} has been moved to Homebrew Cask. Installing #{name}..."
+          ohai "#{name} has been moved to Homebrew Cask."
+          ohai "brew uninstall --force #{name}"
           system HOMEBREW_BREW_FILE, "uninstall", "--force", name
+          ohai "brew prune"
           system HOMEBREW_BREW_FILE, "prune"
+          ohai "brew cask install #{name}"
           system HOMEBREW_BREW_FILE, "cask", "install", name
         else
           ohai "#{name} has been moved to Homebrew Cask.", <<-EOS.undent
@@ -285,7 +322,7 @@ class Reporter
       begin
         f = Formulary.factory(new_full_name)
       rescue Exception => e
-        onoe e if ARGV.homebrew_developer?
+        onoe "#{e.message}\n#{e.backtrace.join "\n"}" if ARGV.homebrew_developer?
         next
       end
 

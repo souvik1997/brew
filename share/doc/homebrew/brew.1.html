@@ -39,18 +39,20 @@ If no search term is given, all locally available formulae are listed.</p></dd>
 Read more at <a href="https://git.io/brew-analytics" data-bare-link="true">https://git.io/brew-analytics</a>.</p></dd>
 <dt><code>analytics</code> (<code>on</code>|<code>off</code>)</dt><dd><p>Turn on/off Homebrew's analytics.</p></dd>
 <dt><code>analytics</code> <code>regenerate-uuid</code></dt><dd><p>Regenerate UUID used in Homebrew's analytics.</p></dd>
-<dt><code>audit</code> [<code>--strict</code>] [<code>--online</code>] [<code>--display-cop-names</code>] [<code>--display-filename</code>] [<var>formulae</var>]</dt><dd><p>Check <var>formulae</var> for Homebrew coding style violations. This should be
+<dt><code>audit</code> [<code>--strict</code>] [<code>--online</code>] [<code>--new-formula</code>] [<code>--display-cop-names</code>] [<code>--display-filename</code>] [<var>formulae</var>]</dt><dd><p>Check <var>formulae</var> for Homebrew coding style violations. This should be
 run before submitting a new formula.</p>
 
 <p>If no <var>formulae</var> are provided, all of them are checked.</p>
 
 <p>If <code>--strict</code> is passed, additional checks are run, including RuboCop
-style checks. This should be used when creating new formulae.</p>
+style checks.</p>
 
 <p>If <code>--online</code> is passed, additional slower checks that require a network
-connection are run. This should be used when creating for new formulae.</p>
-
-<p>If <code>--display-cop-names</code> is passed, the RuboCop cop name for each violation
+connection are run.
+If <code>--new-formula</code> is passed, various additional checks are run that check
+if a new formula is eligable for Homebrew. This should be used when creating
+new formulae and implies <code>--strict</code> and <code>--online</code>.
+If <code>--display-cop-names</code> is passed, the RuboCop cop name for each violation
 is included in the output.</p>
 
 <p>If <code>--display-filename</code> is passed, every line of output is prefixed with the
@@ -292,7 +294,7 @@ spaces.</p>
 <p>If <code>--all</code> is passed, show options for all formulae.</p>
 
 <p>If <code>--installed</code> is passed, show options for all installed formulae.</p></dd>
-<dt><code>outdated</code> [<code>--quiet</code>|<code>--verbose</code>|<code>--json=v1</code>]</dt><dd><p>Show formulae that have an updated version available.</p>
+<dt><code>outdated</code> [<code>--quiet</code>|<code>--verbose</code>|<code>--json=v1</code>] [<code>--fetch-HEAD</code>]</dt><dd><p>Show formulae that have an updated version available.</p>
 
 <p>By default, version information is displayed in interactive shells, and
 suppressed otherwise.</p>
@@ -303,7 +305,11 @@ precedence over <code>--verbose</code>).</p>
 <p>If <code>--verbose</code> is passed, display detailed version information.</p>
 
 <p>If <code>--json=</code><var>version</var> is passed, the output will be in JSON format. The only
-valid version is <code>v1</code>.</p></dd>
+valid version is <code>v1</code>.</p>
+
+<p>If <code>--fetch-HEAD</code> is passed, fetch upstream repository to detect that HEAD
+formula is outdated. Otherwise HEAD-installation is considered outdated if
+new stable or devel version is bumped after that installation.</p></dd>
 <dt><code>pin</code> <var>formulae</var></dt><dd><p>Pin the specified <var>formulae</var>, preventing them from being upgraded when
 issuing the <code>brew upgrade</code> command. See also <code>unpin</code>.</p></dd>
 <dt><code>prune</code> [<code>--dry-run</code>]</dt><dd><p>Remove dead symlinks from the Homebrew prefix. This is generally not
@@ -434,11 +440,15 @@ source. This is useful for creating patches for the software.</p></dd>
 
 <p>If <code>--merge</code> is specified then <code>git merge</code> is used to include updates
   (rather than <code>git rebase</code>).</p></dd>
-<dt><code>upgrade</code> [<var>install-options</var>] [<code>--cleanup</code>] [<var>formulae</var>]</dt><dd><p>Upgrade outdated, unpinned brews.</p>
+<dt><code>upgrade</code> [<var>install-options</var>] [<code>--cleanup</code>] [<code>--fetch-HEAD</code>] [<var>formulae</var>]</dt><dd><p>Upgrade outdated, unpinned brews.</p>
 
 <p>Options for the <code>install</code> command are also valid here.</p>
 
 <p>If <code>--cleanup</code> is specified then remove previously installed <var>formula</var> version(s).</p>
+
+<p>If <code>--fetch-HEAD</code> is passed, fetch upstream repository to detect that HEAD
+formula is outdated. Otherwise HEAD-installation is considered outdated if
+new stable or devel version is bumped after that installation.</p>
 
 <p>If <var>formulae</var> are given, upgrade only the specified brews (but do so even
 if they are pinned; see <code>pin</code>, <code>unpin</code>).</p></dd>
