@@ -203,6 +203,7 @@ class FormulaAuditor
     return unless @strict
 
     component_list = [
+      [/^  include Language::/,            "include directive"],
       [/^  desc ["'][\S\ ]+["']/,          "desc"],
       [/^  homepage ["'][\S\ ]+["']/,      "homepage"],
       [/^  url ["'][\S\ ]+["']/,           "url"],
@@ -219,6 +220,7 @@ class FormulaAuditor
       [/^  keg_only/,                      "keg_only"],
       [/^  option/,                        "option"],
       [/^  depends_on/,                    "depends_on"],
+      [/^  conflicts_with/,                "conflicts_with"],
       [/^  (go_)?resource/,                "resource"],
       [/^  def install/,                   "install method"],
       [/^  def caveats/,                   "caveats method"],
