@@ -205,8 +205,16 @@ class FormulaInstaller
     oh1 "Installing #{Tty.green}#{formula.full_name}#{Tty.reset}" if show_header?
 
     if formula.tap && !formula.tap.private?
-      options = effective_build_options_for(formula).used_options.to_a.join(" ")
-      Utils::Analytics.report_event("install", "#{formula.full_name} #{options}".strip)
+      options = []
+      if formula.head?
+        options << "--HEAD"
+      elsif formula.devel?
+        options << "--devel"
+      end
+      options += effective_build_options_for(formula).used_options.to_a
+      category = "install"
+      action = ([formula.full_name] + options).join(" ")
+      Utils::Analytics.report_event(category, action)
     end
 
     @@attempted << formula
@@ -307,6 +315,7 @@ class FormulaInstaller
     fatals = []
 
     req_map.each_pair do |dependent, reqs|
+      next if dependent.installed?
       reqs.each do |req|
         puts "#{dependent}: #{req.message}"
         fatals << req if req.fatal?
