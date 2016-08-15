@@ -1,6 +1,7 @@
 require "requirement"
 require "requirements/apr_requirement"
 require "requirements/fortran_requirement"
+require "requirements/gpg2_requirement"
 require "requirements/language_module_requirement"
 require "requirements/minimum_macos_requirement"
 require "requirements/maximum_macos_requirement"
@@ -72,13 +73,6 @@ class RbenvRequirement < Requirement
   default_formula "rbenv"
 
   satisfy { which "rbenv" }
-end
-
-class GPGRequirement < Requirement
-  fatal true
-  default_formula "gpg"
-
-  satisfy { which("gpg") || which("gpg2") }
 end
 
 class TeXRequirement < Requirement
