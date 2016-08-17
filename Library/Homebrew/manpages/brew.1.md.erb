@@ -145,8 +145,8 @@ can take several different forms:
     of the formula being brewed.
 
   * `HOMEBREW_DEVELOPER`:
-    If set, Homebrew will print warnings that are only relevant to Homebrew
-    developers (active or budding).
+    If set, Homebrew will tweak behaviour to be more relevant for Homebrew
+    developers (active or budding) e.g. turning warnings into errors.
 
   * `HOMEBREW_EDITOR`:
     If set, Homebrew will use this editor when editing a single formula, or
@@ -155,6 +155,10 @@ can take several different forms:
     *Note:* `brew edit` will open all of Homebrew as discontinuous files and
     directories. TextMate can handle this correctly in project mode, but many
     editors will do strange things in this case.
+
+  * `HOMEBREW_FORCE_VENDOR_RUBY`:
+    If set, Homebrew will always use its vendored, relocatable Ruby 2.0 version
+    even if the system version of Ruby is >=2.0.
 
   * `HOMEBREW_GITHUB_API_TOKEN`:
     A personal access token for the GitHub API, which you can create at
