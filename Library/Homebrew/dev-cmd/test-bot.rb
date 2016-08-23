@@ -49,22 +49,12 @@ module Homebrew
 
   HOMEBREW_TAP_REGEX = %r{^([\w-]+)/homebrew-([\w-]+)$}
 
-  if ruby_has_encoding?
-    def fix_encoding!(str)
-      # Assume we are starting from a "mostly" UTF-8 string
-      str.force_encoding(Encoding::UTF_8)
-      return str if str.valid_encoding?
-      str.encode!(Encoding::UTF_16, :invalid => :replace)
-      str.encode!(Encoding::UTF_8)
-    end
-  elsif require "iconv"
-    def fix_encoding!(str)
-      Iconv.conv("UTF-8//IGNORE", "UTF-8", str)
-    end
-  else
-    def fix_encoding!(str)
-      str
-    end
+  def fix_encoding!(str)
+    # Assume we are starting from a "mostly" UTF-8 string
+    str.force_encoding(Encoding::UTF_8)
+    return str if str.valid_encoding?
+    str.encode!(Encoding::UTF_16, :invalid => :replace)
+    str.encode!(Encoding::UTF_8)
   end
 
   def resolve_test_tap
@@ -181,7 +171,7 @@ module Homebrew
       verbose = ARGV.verbose?
       # Step may produce arbitrary output and we read it bytewise, so must
       # buffer it as binary and convert to UTF-8 once complete
-      output = ruby_has_encoding? ? "".encode!("BINARY") : ""
+      output = "".encode!("BINARY")
       working_dir = Pathname.new(@command.first == "git" ? @repository : Dir.pwd)
       read, write = IO.pipe
 
@@ -669,6 +659,7 @@ module Homebrew
         test "brew", "readall", "--syntax"
         if OS.mac? &&
            (HOMEBREW_REPOSITORY/"Library/Homebrew/cask/cmd/brew-cask-tests.rb").exist?
+          run_as_not_developer { test "brew", "tap", "caskroom/cask" }
           test "brew", "cask-tests"
         end
 
@@ -918,7 +909,6 @@ module Homebrew
 
     ENV["HOMEBREW_DEVELOPER"] = "1"
     ENV["HOMEBREW_SANDBOX"] = "1"
-    ENV["HOMEBREW_RUBY_MACHO"] = "1"
     ENV["HOMEBREW_NO_EMOJI"] = "1"
     ENV["HOMEBREW_FAIL_LOG_LINES"] = "150"
     ENV["HOMEBREW_EXPERIMENTAL_FILTER_FLAGS_ON_DEPS"] = "1"
@@ -961,7 +951,7 @@ module Homebrew
     # Tap repository if required, this is done before everything else
     # because Formula parsing and/or git commit hash lookup depends on it.
     # At the same time, make sure Tap is not a shallow clone.
-    # bottle revision and bottle upload rely on full clone.
+    # bottle rebuild and bottle upload rely on full clone.
     safe_system "brew", "tap", tap.name, "--full" if tap
 
     if ARGV.include? "--ci-upload"
@@ -1045,19 +1035,8 @@ module Homebrew
   def sanitize_output_for_xml(output)
     unless output.empty?
       # Remove invalid XML CData characters from step output.
-      if ruby_has_encoding?
-        # This is the regex for valid XML chars, but only works in Ruby 2.0+
-        # /[\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/
-        # For 1.9 compatibility, use the inverse of that, which stays under \u10000
-        # invalid_xml_pat = /[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\uFFFE\uFFFF]/
-        # But Ruby won't allow you to reference surrogates, so we have:
-        invalid_xml_pat = /[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]/
-        output = output.gsub(invalid_xml_pat, "\uFFFD")
-      else
-        # Invalid XML chars, as far as single-byte chars go
-        output = output.delete("\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f" \
-          "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f")
-      end
+      invalid_xml_pat = /[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/
+      output = output.gsub(invalid_xml_pat, "\uFFFD")
 
       # Truncate to 1MB to avoid hitting CI limits
       if output.bytesize > MAX_STEP_OUTPUT_SIZE

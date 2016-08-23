@@ -293,6 +293,9 @@ module SharedEnvExtension
 
   def permit_arch_flags; end
 
+  # A no-op until we enable this by default again (which we may never do).
+  def permit_weak_imports; end
+
   private
 
   def cc=(val)

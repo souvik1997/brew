@@ -8,11 +8,12 @@ class Sandbox
   ].freeze
 
   def self.available?
-    OS.mac? && File.executable?(SANDBOX_EXEC)
+    OS.mac? && OS::Mac.version >= "10.6" && File.executable?(SANDBOX_EXEC)
   end
 
   def self.formula?(formula)
     return false unless available?
+    return false if ARGV.no_sandbox?
     ARGV.sandbox? || SANDBOXED_TAPS.include?(formula.tap.to_s)
   end
 
