@@ -20,7 +20,7 @@ describe Hbc::DSL do
     end
 
     it "prints a warning that it has encountered an unexpected method" do
-      expected = Regexp.compile(<<-EOREGEX.undent.lines.map(&:chomp).join(""))
+      expected = Regexp.compile(<<-EOS.undent.lines.map(&:chomp).join(""))
         (?m)
         Warning:
         .*
@@ -29,7 +29,7 @@ describe Hbc::DSL do
         brew update; brew cleanup; brew cask cleanup
         .*
         https://github.com/caskroom/homebrew-cask#reporting-bugs
-      EOREGEX
+      EOS
 
       TestHelper.must_output(self, attempt_unknown_method, expected)
     end
@@ -62,6 +62,15 @@ describe Hbc::DSL do
 
     it "does not require a DSL version in the header" do
       test_cask = Hbc.load("no-dsl-version")
+      test_cask.token.must_equal "no-dsl-version"
+      test_cask.url.to_s.must_equal "http://example.com/TestCask.dmg"
+      test_cask.homepage.must_equal "http://example.com/"
+      test_cask.version.to_s.must_equal "1.2.3"
+    end
+
+    it "may use deprecated DSL version hash syntax" do
+      test_cask = Hbc.load("with-dsl-version")
+      test_cask.token.must_equal "with-dsl-version"
       test_cask.url.to_s.must_equal "http://example.com/TestCask.dmg"
       test_cask.homepage.must_equal "http://example.com/"
       test_cask.version.to_s.must_equal "1.2.3"

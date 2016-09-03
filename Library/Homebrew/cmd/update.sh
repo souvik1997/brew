@@ -17,10 +17,7 @@ source "$HOMEBREW_LIBRARY/Homebrew/utils/lock.sh"
 git() {
   if [[ -z "$GIT_EXECUTABLE" ]]
   then
-    GIT_EXECUTABLE_RELATIVE="$("$HOMEBREW_LIBRARY/Homebrew/shims/scm/git" --homebrew=print-path)"
-    GIT_EXECUTABLE_BASE="$(basename "$GIT_EXECUTABLE_RELATIVE")"
-    GIT_EXECUTABLE_DIR="$(cd "$(dirname "$GIT_EXECUTABLE_RELATIVE")" && pwd)"
-    GIT_EXECUTABLE="$GIT_EXECUTABLE_DIR/$GIT_EXECUTABLE_BASE"
+    GIT_EXECUTABLE="$("$HOMEBREW_LIBRARY/Homebrew/shims/scm/git" --homebrew=print-path)"
   fi
   "$GIT_EXECUTABLE" "$@"
 }
@@ -226,9 +223,18 @@ merge_or_rebase() {
     fi
     git merge --abort &>/dev/null
     git rebase --abort &>/dev/null
-    git -c "user.email=brew-update@localhost" \
-        -c "user.name=brew update" \
-        stash save --include-untracked "${QUIET_ARGS[@]}"
+    git reset --mixed "${QUIET_ARGS[@]}"
+    if ! git -c "user.email=brew-update@localhost" \
+             -c "user.name=brew update" \
+             stash save --include-untracked "${QUIET_ARGS[@]}"
+    then
+      odie <<EOS
+Could not `git stash` in $DIR!
+Please stash/commit manually if you need to keep your changes or, if not, run:
+  cd $DIR
+  git reset --hard origin/master
+EOS
+    fi
     git reset --hard "${QUIET_ARGS[@]}"
     STASHED="1"
   fi

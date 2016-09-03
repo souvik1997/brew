@@ -888,11 +888,18 @@ class Formula
   def run_post_install
     build = self.build
     self.build = Tab.for_formula(self)
+    old_tmpdir = ENV["TMPDIR"]
+    old_temp = ENV["TEMP"]
+    old_tmp = ENV["TMP"]
+    ENV["TMPDIR"] = ENV["TEMP"] = ENV["TMP"] = HOMEBREW_TEMP
     with_logging("post_install") do
       post_install
     end
   ensure
     self.build = build
+    ENV["TMPDIR"] = old_tmpdir
+    ENV["TEMP"] = old_temp
+    ENV["TMP"] = old_tmp
   end
 
   # Tell the user about any caveats regarding this package.
@@ -1411,7 +1418,11 @@ class Formula
   def run_test
     old_home = ENV["HOME"]
     old_curl_home = ENV["CURL_HOME"]
+    old_tmpdir = ENV["TMPDIR"]
+    old_temp = ENV["TEMP"]
+    old_tmp = ENV["TMP"]
     ENV["CURL_HOME"] = old_curl_home || old_home
+    ENV["TMPDIR"] = ENV["TEMP"] = ENV["TMP"] = HOMEBREW_TEMP
     mktemp("#{name}-test") do |staging|
       staging.retain! if ARGV.keep_tmp?
       @testpath = staging.tmpdir
@@ -1430,6 +1441,9 @@ class Formula
     @testpath = nil
     ENV["HOME"] = old_home
     ENV["CURL_HOME"] = old_curl_home
+    ENV["TMPDIR"] = old_tmpdir
+    ENV["TEMP"] = old_temp
+    ENV["TMP"] = old_tmp
   end
 
   # @private
@@ -1597,6 +1611,8 @@ class Formula
         eligible_kegs.each do |keg|
           if keg.linked?
             opoo "Skipping (old) #{keg} due to it being linked"
+          elsif pinned? && keg == Keg.new(@pin.path.resolved_path)
+            opoo "Skipping (old) #{keg} due to it being pinned"
           else
             eligible_for_cleanup << keg
           end
@@ -2048,7 +2064,7 @@ class Formula
     # <pre>plist_options :manual => "foo"</pre>
     #
     # Or perhaps you'd like to give the user a choice? Ooh fancy.
-    # <pre>plist_options :startup => "true", :manual => "foo start"</pre>
+    # <pre>plist_options :startup => true, :manual => "foo start"</pre>
     def plist_options(options)
       @plist_startup = options[:startup]
       @plist_manual = options[:manual]

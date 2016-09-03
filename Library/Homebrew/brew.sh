@@ -38,13 +38,13 @@ then
   export LC_ALL="en_US.UTF-8"
 fi
 
-# Where we store built products; /usr/local/Cellar if it exists,
-# otherwise a Cellar relative to the Repository.
-if [[ -d "$HOMEBREW_PREFIX/Cellar" ]]
+# Where we store built products; a Cellar in HOMEBREW_PREFIX (often /usr/local
+# for bottles) unless there's already a Cellar in HOMEBREW_REPOSITORY.
+if [[ -d "$HOMEBREW_REPOSITORY/Cellar" ]]
 then
-  HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
-else
   HOMEBREW_CELLAR="$HOMEBREW_REPOSITORY/Cellar"
+else
+  HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
 fi
 
 case "$*" in
@@ -200,6 +200,22 @@ then
 fi
 
 check-run-command-as-root() {
+  [[ "$(id -u)" = 0 ]] || return
+  export HOMEBREW_NO_SANDBOX="1"
+
+  [[ "$HOMEBREW_COMMAND" = "cask" ]] && return
+  [[ "$HOMEBREW_COMMAND" = "services" ]] && return
+
+  onoe <<EOS
+Running Homebrew as root is extremely dangerous. As Homebrew does not
+drop privileges on installation you are giving all build scripts full access
+to your system. As a result of the OS X sandbox not handling the root user
+correctly HOMEBREW_NO_SANDBOX has been set so the sandbox will not be used. If
+we have not merged a pull request to add privilege dropping by November 1st
+2016 running Homebrew as root will be disabled. No Homebrew maintainers plan
+to work on this functionality.
+EOS
+
   case "$HOMEBREW_COMMAND" in
     analytics|create|install|link|migrate|pin|postinstall|reinstall|switch|tap|\
     tap-pin|update|upgrade|vendor-install)
@@ -208,8 +224,6 @@ check-run-command-as-root() {
       return
       ;;
   esac
-
-  [[ "$(id -u)" = 0 ]] || return
 
   local brew_file_ls_info=($(ls -nd "$HOMEBREW_BREW_FILE"))
   if [[ "${brew_file_ls_info[2]}" != 0 ]]
@@ -234,7 +248,7 @@ update-preinstall() {
   [[ -z "$HOMEBREW_NO_AUTO_UPDATE" ]] || return
   [[ -z "$HOMEBREW_UPDATE_PREINSTALL" ]] || return
 
-  if [[ "$HOMEBREW_COMMAND" = "install" || "$HOMEBREW_COMMAND" = "upgrade" ]]
+  if [[ "$HOMEBREW_COMMAND" = "install" || "$HOMEBREW_COMMAND" = "upgrade" || "$HOMEBREW_COMMAND" = "tap" ]]
   then
     brew update --preinstall
   fi

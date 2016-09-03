@@ -25,6 +25,10 @@ class Tty
       bold 39
     end
 
+    def magenta
+      bold 35
+    end
+
     def red
       underline 31
     end
@@ -593,4 +597,27 @@ def truncate_text_to_approximate_size(s, max_bytes, options = {})
   out.encode!("UTF-16", :invalid => :replace)
   out.encode!("UTF-8")
   out
+end
+
+def link_path_manpages(path, command)
+  return unless (path/"man").exist?
+  conflicts = []
+  (path/"man").find do |src|
+    next if src.directory?
+    dst = HOMEBREW_PREFIX/"share"/src.relative_path_from(path)
+    next if dst.symlink? && src == dst.resolved_path
+    if dst.exist?
+      conflicts << dst
+      next
+    end
+    dst.make_relative_symlink(src)
+  end
+  unless conflicts.empty?
+    onoe <<-EOS.undent
+      Could not link #{name} manpages to:
+      #{conflicts.join("\n")}
+
+      Please delete these files and run `#{command}`.
+    EOS
+  end
 end

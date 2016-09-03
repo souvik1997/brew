@@ -2,9 +2,9 @@ require "bundler"
 require "bundler/setup"
 require "pathname"
 
-if ENV["COVERAGE"]
-  require "coveralls"
-  Coveralls.wear_merged!
+if ENV["HOMEBREW_TESTS_COVERAGE"]
+  require "simplecov"
+  SimpleCov.command_name "test:cask:minitest"
 end
 
 project_root = Pathname.new(File.expand_path("../..", __FILE__))
@@ -14,7 +14,6 @@ tap_root = Pathname.new(ENV["HOMEBREW_LIBRARY"]).join("Taps", "caskroom", "homeb
 $LOAD_PATH.unshift(File.expand_path("#{ENV['HOMEBREW_REPOSITORY']}/Library/Homebrew"))
 
 require "global"
-require "extend/pathname"
 
 # add Homebrew-Cask to load path
 $LOAD_PATH.push(project_root.join("lib").to_s)

@@ -35,8 +35,9 @@ require "hbc/url_checker"
 require "hbc/utils"
 require "hbc/verify"
 require "hbc/version"
+require "utils"
 
-require "vendor/plist"
+require "vendor/plist/plist"
 
 module Hbc
   include Hbc::Locations
